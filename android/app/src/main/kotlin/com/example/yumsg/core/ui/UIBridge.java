@@ -102,6 +102,7 @@ public class UIBridge implements MethodChannel.MethodCallHandler, EventChannel.S
     // Method names - Organization
     private static final String METHOD_GET_ORGANIZATION_INFO = "getOrganizationInfo";
     private static final String METHOD_GET_SERVER_ALGORITHMS = "getServerAlgorithms";
+    private static final String METHOD_GENERATE_ORGANIZATION_KEYS = "generateOrganizationKeys";
     
     // Method names - Session Management
     private static final String METHOD_GET_SESSION_INFO = "getSessionInfo";
@@ -408,6 +409,9 @@ public class UIBridge implements MethodChannel.MethodCallHandler, EventChannel.S
                     break;
                 case METHOD_GET_SERVER_ALGORITHMS:
                     handleGetServerAlgorithms(call, result);
+                    break;
+                case METHOD_GENERATE_ORGANIZATION_KEYS:
+                    handleGenerateOrganizationKeys(call, result);
                     break;
                     
                 // Session Management
@@ -1285,7 +1289,7 @@ public class UIBridge implements MethodChannel.MethodCallHandler, EventChannel.S
                     algMap.put("kemAlgorithm", algorithms.getKemAlgorithm());
                     algMap.put("symmetricAlgorithm", algorithms.getSymmetricAlgorithm());
                     algMap.put("signatureAlgorithm", algorithms.getSignatureAlgorithm());
-                    
+
                     Map<String, Object> response = createSuccessResponse("Server algorithms retrieved");
                     response.put("algorithms", algMap);
                     result.success(response);
@@ -1293,6 +1297,23 @@ public class UIBridge implements MethodChannel.MethodCallHandler, EventChannel.S
             })
             .exceptionally(throwable -> {
                 mainHandler.post(() -> result.error("ALGORITHM_ERROR", throwable.getMessage(), null));
+                return null;
+            });
+    }
+
+    private void handleGenerateOrganizationKeys(MethodCall call, MethodChannel.Result result) {
+        backgroundService.generateOrganizationKeys()
+            .thenAccept(success -> {
+                mainHandler.post(() -> {
+                    if (success) {
+                        result.success(createSuccessResponse("Organization keys generated"));
+                    } else {
+                        result.error("ORG_KEY_ERROR", "Failed to generate organization keys", null);
+                    }
+                });
+            })
+            .exceptionally(throwable -> {
+                mainHandler.post(() -> result.error("ORG_KEY_ERROR", throwable.getMessage(), null));
                 return null;
             });
     }

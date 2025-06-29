@@ -7,6 +7,8 @@ import 'files_screen.dart';
 import 'profile_screen.dart';
 import 'chat_screen.dart';
 import '../models/chat_models.dart';
+import '../services/ui_bridge.dart';
+import '../models/data_models.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -20,60 +22,18 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   late AnimationController _drawerController;
-  
+
   String _searchQuery = '';
   bool _isSearchMode = false;
+  bool _isSearchingUsers = false;
+  final UIBridge _uiBridge = UIBridge.instance;
+  List<User> _searchResults = [];
   
-  // Мокап данных чатов
-  final List<ChatInfo> _chats = [
-    ChatInfo(
-      id: 1,
-      name: 'Анна Петрова',
-      lastMessage: 'Привет! Как дела с проектом?',
-      time: '14:32',
-      unread: 2,
-      avatar: '👩‍💼',
-      isOnline: true,
-    ),
-    ChatInfo(
-      id: 2,
-      name: 'Команда разработки',
-      lastMessage: 'Михаил: Релиз готов к тестированию',
-      time: '13:45',
-      unread: 0,
-      avatar: '👥',
-      isOnline: false,
-      isGroup: true,
-    ),
-    ChatInfo(
-      id: 3,
-      name: 'Сергей Иванов',
-      lastMessage: 'Отправил документы на согласование',
-      time: '12:18',
-      unread: 1,
-      avatar: '👨‍💻',
-      isOnline: true,
-    ),
-    ChatInfo(
-      id: 4,
-      name: 'HR Отдел',
-      lastMessage: 'Напоминание о собрании в 15:00',
-      time: '11:30',
-      unread: 0,
-      avatar: '🏢',
-      isOnline: false,
-      isGroup: true,
-    ),
-    ChatInfo(
-      id: 5,
-      name: 'Мария Козлова',
-      lastMessage: 'Спасибо за помощь!',
-      time: 'Вчера',
-      unread: 0,
-      avatar: '👩‍🎨',
-      isOnline: false,
-    ),
-  ];
+  // Список чатов получаемый из нативного слоя
+  List<ChatInfo> _chats = [];
+
+  // Ссылка на обработчик событий
+  late final Function(Map<String, dynamic>) _chatEstablishedHandler;
 
   @override
   void initState() {
@@ -82,6 +42,16 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
       duration: const Duration(milliseconds: 250),
       vsync: this,
     );
+
+    _loadChatList();
+    _listenToEvents();
+
+    // Generate organization signature keys in server mode
+    if (AppStateService.getAppMode() == 'server') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _uiBridge.generateOrganizationKeys();
+      });
+    }
   }
 
   @override
@@ -89,6 +59,7 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
     _drawerController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _uiBridge.removeEventListener('ChatEstablished', _chatEstablishedHandler);
     super.dispose();
   }
 
@@ -520,8 +491,8 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
             ..._filteredChats.map((chat) => _buildChatItem(chat, isDark)),
           ],
           
-          // Потенциальные новые пользователи (мокап)
-          if (_searchQuery.length > 2) ...[
+          // Потенциальные новые пользователи
+          if (_searchResults.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
@@ -533,8 +504,13 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
                 ),
               ),
             ),
-            _buildNewUserItem('${_searchQuery.toUpperCase()} (${_searchQuery}@company.com)', isDark),
-            _buildNewUserItem('${_searchQuery.toLowerCase()}_user', isDark),
+            if (_isSearchingUsers)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            else
+              ..._searchResults.map((u) => _buildNewUserItem(u, isDark)),
           ],
         ],
       );
@@ -550,9 +526,9 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildNewUserItem(String username, bool isDark) {
+  Widget _buildNewUserItem(User user, bool isDark) {
     return InkWell(
-      onTap: () => _handleNewUserTap(username),
+      onTap: () => _handleNewUserTap(user),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -577,10 +553,13 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
                   width: 2,
                 ),
               ),
-              child: const Icon(
-                Icons.person_add,
-                color: Colors.grey,
-                size: 24,
+              child: Center(
+                child: Text(
+                  (user.displayName ?? user.username).isNotEmpty
+                      ? (user.displayName ?? user.username)[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(fontSize: 20),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -591,7 +570,7 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    username,
+                    user.displayName ?? user.username,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white : const Color(0xFF1F2937),
@@ -871,6 +850,8 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
         _searchController.clear();
         _searchQuery = '';
         _searchFocusNode.unfocus();
+        _searchResults.clear();
+        _isSearchingUsers = false;
       }
     });
   }
@@ -879,24 +860,87 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
     setState(() {
       _searchController.clear();
       _searchQuery = '';
+      _searchResults.clear();
+      _isSearchingUsers = false;
     });
   }
 
-  void _handleSearchSubmit(String query) {
-    // Плейсхолдер для обработки поиска
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Поиск: $query')),
-    );
+  void _loadChatList() async {
+    final chats = await _uiBridge.getChatList();
+    if (!mounted) return;
+    setState(() {
+      _chats = chats.map((e) => ChatInfo.fromMap(e)).toList();
+    });
   }
 
-  void _handleNewUserTap(String username) {
-    // Плейсхолдер для начала чата с новым пользователем
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Начать чат с $username')),
-    );
-    
-    // Можно автоматически выйти из режима поиска после выбора
-    _handleSearchToggle();
+  void _listenToEvents() {
+    _chatEstablishedHandler = (Map<String, dynamic> data) async {
+      final chatId = data['chatId'] as String?;
+      if (chatId != null) {
+        final chatMap = await _uiBridge.getChatInfo(chatId: chatId);
+        if (chatMap != null && mounted) {
+          setState(() {
+            final chat = ChatInfo.fromMap(chatMap);
+            final index = _chats.indexWhere((c) => c.id == chat.id);
+            if (index >= 0) {
+              _chats[index] = chat;
+            } else {
+              _chats.add(chat);
+            }
+          });
+        }
+      }
+    };
+
+    _uiBridge.addEventListener('ChatEstablished', _chatEstablishedHandler);
+  }
+
+  void _handleSearchSubmit(String query) {
+    if (query.trim().length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Введите не менее 2 символов')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSearchingUsers = true;
+    });
+
+    _uiBridge.searchUsers(query: query.trim()).then((users) {
+      if (!mounted) return;
+      setState(() {
+        _searchResults = users.map((e) => User.fromMap(e)).toList();
+        _isSearchingUsers = false;
+      });
+    });
+  }
+
+  void _handleNewUserTap(User user) async {
+    final response = await _uiBridge.initializeChat(recipientId: user.id);
+    if (response.success) {
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatScreen(
+            contact: ChatContact(
+              name: user.displayName ?? user.username,
+              avatar: user.username.isNotEmpty
+                  ? user.username[0].toUpperCase()
+                  : '?',
+              isOnline: user.presence == UserPresence.online,
+            ),
+          ),
+        ),
+      );
+      _handleSearchToggle();
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response.message)),
+      );
+    }
   }
 
   void _handleNavigation(String route) {

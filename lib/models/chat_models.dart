@@ -48,7 +48,7 @@ class FileAttachment {
 }
 
 class ChatInfo {
-  final int id;
+  final String id;
   final String name;
   final String lastMessage;
   final String time;
@@ -60,11 +60,34 @@ class ChatInfo {
   ChatInfo({
     required this.id,
     required this.name,
-    required this.lastMessage,
-    required this.time,
-    required this.unread,
+    this.lastMessage = '',
+    this.time = '',
+    this.unread = 0,
     required this.avatar,
-    required this.isOnline,
+    this.isOnline = false,
     this.isGroup = false,
   });
+
+  factory ChatInfo.fromMap(Map<String, dynamic> map) {
+    final name = map['name'] ?? 'Chat';
+    final avatar = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    String time = '';
+    if (map['lastActivity'] != null) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(map['lastActivity']);
+      final h = dt.hour.toString().padLeft(2, '0');
+      final m = dt.minute.toString().padLeft(2, '0');
+      time = '$h:$m';
+    }
+
+    return ChatInfo(
+      id: map['id'] ?? '',
+      name: name,
+      lastMessage: map['lastMessage'] ?? '',
+      time: time,
+      unread: map['unread'] ?? 0,
+      avatar: avatar,
+      isOnline: map['isOnline'] ?? false,
+      isGroup: map['isGroup'] ?? false,
+    );
+  }
 }

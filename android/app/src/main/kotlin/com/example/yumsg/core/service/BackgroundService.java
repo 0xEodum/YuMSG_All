@@ -940,6 +940,51 @@ public class BackgroundService {
             }
         }, executorService);
     }
+
+    /**
+     * Generate and save organization signature keys
+     */
+    public CompletableFuture<Boolean> generateOrganizationKeys() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Log.d(TAG, "Generating organization keys");
+
+                ServerConfig serverConfig = preferencesManager.getServerConfig();
+                if (serverConfig == null || serverConfig.getOrganizationName() == null) {
+                    Log.w(TAG, "No organization configured for key generation");
+                    return false;
+                }
+
+                CryptoAlgorithms algorithms = preferencesManager.getCryptoAlgorithms();
+                Organization organization = new Organization(serverConfig.getOrganizationName());
+
+                cryptoManager.generateAndSaveOrganizationKeys(organization, algorithms);
+
+                OrganizationKeys orgKeys = new OrganizationKeys(
+                        organization.getName(),
+                        algorithms.getSignatureAlgorithm(),
+                        organization.getUserSignaturePublicKey(),
+                        organization.getUserSignaturePrivateKey());
+
+                boolean saved = databaseManager.saveOrganizationKeys(orgKeys);
+
+                organization.setUserSignaturePrivateKey(null);
+                organization.setUserSignaturePublicKey(null);
+
+                if (saved) {
+                    Log.i(TAG, "Organization keys generated and saved for: " + organization.getName());
+                    return true;
+                } else {
+                    Log.e(TAG, "Failed to save organization keys to database");
+                    return false;
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "Organization key generation failed", e);
+                return false;
+            }
+        }, executorService);
+    }
     
     /**
      * Logout user
