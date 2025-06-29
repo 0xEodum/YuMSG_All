@@ -1,4 +1,4 @@
-package com.yumsg.core.ui;
+package com.example.yumsg.core.ui;
 
 import android.content.Context;
 import android.os.Handler;
@@ -9,12 +9,12 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
-import com.yumsg.core.data.*;
-import com.yumsg.core.enums.*;
-import com.yumsg.core.service.BackgroundService;
-import com.yumsg.core.state.StateManager;
-import com.yumsg.core.session.SessionManager;
-import com.yumsg.core.storage.SharedPreferencesManager;
+import com.example.yumsg.core.data.*;
+import com.example.yumsg.core.enums.*;
+import com.example.yumsg.core.service.BackgroundService;
+import com.example.yumsg.core.state.StateManager;
+import com.example.yumsg.core.session.SessionManager;
+import com.example.yumsg.core.storage.SharedPreferencesManager;
 
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.EventChannel;
@@ -51,8 +51,8 @@ public class UIBridge implements MethodChannel.MethodCallHandler, EventChannel.S
     private static final String TAG = "UIBridge";
     
     // Channel names
-    private static final String METHOD_CHANNEL = "com.yumsg/methods";
-    private static final String EVENT_CHANNEL = "com.yumsg/events";
+    private static final String METHOD_CHANNEL = "com.example.yumsg/methods";
+    private static final String EVENT_CHANNEL = "com.example.yumsg/events";
     
     // Method names - App State & Mode Management
     private static final String METHOD_SELECT_MODE = "selectMode";

@@ -1,4 +1,4 @@
-package com.yumsg;
+package com.example.yumsg;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -7,11 +7,11 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.yumsg.core.service.BackgroundService;
-import com.yumsg.core.ui.UIBridge;
-import com.yumsg.core.data.StateObserver;
-import com.yumsg.core.enums.AppState;
-import com.yumsg.core.enums.ConnectionState;
+import com.example.yumsg.core.service.BackgroundService;
+import com.example.yumsg.core.ui.UIBridge;
+import com.example.yumsg.core.data.StateObserver;
+import com.example.yumsg.core.enums.AppState;
+import com.example.yumsg.core.enums.ConnectionState;
 
 import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
@@ -299,7 +299,7 @@ public class MainActivity extends FlutterActivity implements StateObserver {
         if (Intent.ACTION_VIEW.equals(action)) {
             // Handle deep link
             handleDeepLink(intent);
-        } else if ("com.yumsg.MESSAGE_NOTIFICATION".equals(action)) {
+        } else if ("com.example.yumsg.MESSAGE_NOTIFICATION".equals(action)) {
             // Handle message notification
             handleMessageNotification(intent);
         }
