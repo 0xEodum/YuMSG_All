@@ -133,14 +133,13 @@ public class ServerNetworkManager implements NetworkManager {
                 // Extract connection parameters
                 String host = (String) connectionParams.get("host");
                 Integer port = (Integer) connectionParams.get("port");
-                String orgName = (String) connectionParams.get("organizationName");
-                
-                if (host == null || port == null || orgName == null) {
+
+                if (host == null || port == null) {
                     throw new IllegalArgumentException("Missing required connection parameters");
                 }
-                
+
                 this.baseUrl = buildBaseUrl(host, port);
-                this.organizationName = orgName;
+                this.organizationName = null;
                 
                 // Initialize HTTP client with SSL pinning
                 initializeHttpClient();
@@ -704,6 +703,8 @@ public class ServerNetworkManager implements NetworkManager {
                     OrgInfoResponse orgData = response.getData();
 
                     // Build organization info
+                    this.organizationName = orgData.organization.name;
+
                     OrganizationInfo orgInfo = new OrganizationInfo(
                         orgData.organization.name,
                         orgData.organization.id

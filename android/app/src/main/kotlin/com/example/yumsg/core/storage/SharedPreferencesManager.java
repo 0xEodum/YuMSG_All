@@ -361,22 +361,26 @@ public class SharedPreferencesManager {
             return;
         }
         
-        if (organizationName == null || organizationName.trim().isEmpty()) {
-            Log.w(TAG, "Invalid organization name provided for server config");
-            return;
-        }
-        
+        // Organization name may be null during initial connection
+
         lock.writeLock().lock();
         try {
-            ServerConfig config = new ServerConfig(host.trim(), port, organizationName.trim());
+            ServerConfig config = new ServerConfig(host.trim(), port, organizationName != null ? organizationName.trim() : null);
             String json = gson.toJson(config);
             editor.putString(KEY_SERVER_CONFIG, json).apply();
-            Log.d(TAG, "Server config saved: " + host + ":" + port + " (" + organizationName + ")");
+            Log.d(TAG, "Server config saved: " + host + ":" + port + (organizationName != null ? " (" + organizationName + ")" : ""));
         } catch (Exception e) {
             Log.e(TAG, "Failed to save server config", e);
         } finally {
             lock.writeLock().unlock();
         }
+    }
+
+    /**
+     * Set server configuration without organization name
+     */
+    public void setServerConfig(String host, int port) {
+        setServerConfig(host, port, null);
     }
     
     /**

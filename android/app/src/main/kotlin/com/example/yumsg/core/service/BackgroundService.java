@@ -422,7 +422,7 @@ public class BackgroundService {
      * Connect to server
      * Chain: UIBridge -> BackgroundService.connectToServer() -> ServerNetworkManager.connect()
      */
-    public CompletableFuture<ConnectionResult> connectToServer(String host, int port, String organizationName) {
+    public CompletableFuture<ConnectionResult> connectToServer(String host, int port) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 Log.d(TAG, "Connecting to server: " + host + ":" + port);
@@ -434,12 +434,9 @@ public class BackgroundService {
                 if (port <= 0 || port > 65535) {
                     throw new IllegalArgumentException("Invalid port: " + port);
                 }
-                if (organizationName == null || organizationName.trim().isEmpty()) {
-                    throw new IllegalArgumentException("Organization name cannot be empty");
-                }
-                
-                // Store server configuration
-                preferencesManager.setServerConfig(host, port, organizationName);
+
+                // Store server host/port
+                preferencesManager.setServerConfig(host, port);
                 
                 // Ensure we have ServerNetworkManager
                 if (!(networkManager instanceof ServerNetworkManager)) {
@@ -451,7 +448,6 @@ public class BackgroundService {
                 Map<String, Object> connectionParams = new HashMap<>();
                 connectionParams.put("host", host);
                 connectionParams.put("port", port);
-                connectionParams.put("organizationName", organizationName);
                 
                 return networkManager.connect(connectionParams).get();
                 
@@ -463,12 +459,19 @@ public class BackgroundService {
             if (connectionResult.isSuccess()) {
                 // Get organization info and server algorithms
                 return networkManager.getOrganizationInfo()
-                    .thenCompose(orgInfo -> networkManager.getServerAlgorithms())
+                    .thenCompose(orgInfo -> {
+                        if (orgInfo != null) {
+                            ServerConfig cfg = preferencesManager.getServerConfig();
+                            if (cfg != null) {
+                                preferencesManager.setServerConfig(cfg.getHost(), cfg.getPort(), orgInfo.getName());
+                            }
+                        }
+                        return networkManager.getServerAlgorithms();
+                    })
                     .thenApply(serverAlgorithms -> {
-                        // Store server algorithms
                         preferencesManager.setCryptoAlgorithms(serverAlgorithms);
                         stateManager.setConnectionState(ConnectionState.CONNECTED);
-                        
+
                         Log.i(TAG, "Server connection established successfully");
                         return connectionResult;
                     });
@@ -1554,7 +1557,7 @@ public class BackgroundService {
             return;
         }
         
-        connectToServer(serverConfig.getHost(), serverConfig.getPort(), serverConfig.getOrganizationName())
+        connectToServer(serverConfig.getHost(), serverConfig.getPort())
             .thenCompose(connectionResult -> {
                 if (connectionResult.isSuccess()) {
                     stateManager.setConnectionState(ConnectionState.CONNECTED);
@@ -1980,8 +1983,7 @@ public class BackgroundService {
                     case "connectToServer":
                         String host = (String) arguments.get("host");
                         Integer port = (Integer) arguments.get("port");
-                        String orgName = (String) arguments.get("organizationName");
-                        return handleConnectToServerUI(host, port, orgName);
+                        return handleConnectToServerUI(host, port);
 
                     case "authenticateUser":
                         String username = (String) arguments.get("username");
@@ -2057,9 +2059,9 @@ public class BackgroundService {
         }
     }
 
-    private Map<String, Object> handleConnectToServerUI(String host, int port, String organizationName) {
+    private Map<String, Object> handleConnectToServerUI(String host, int port) {
         try {
-            ConnectionResult result = connectToServer(host, port, organizationName).get();
+            ConnectionResult result = connectToServer(host, port).get();
             Map<String, Object> response = new HashMap<>();
             response.put("success", result.isSuccess());
             response.put("message", result.getMessage());
