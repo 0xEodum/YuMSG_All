@@ -214,7 +214,7 @@ class UIBridge {
       return UIResponse.error('Failed to register user: $e');
     }
   }
-  
+
   /// Set local user (for LOCAL mode)
   Future<UIResponse> setLocalUser({required String username}) async {
     try {
@@ -226,7 +226,7 @@ class UIBridge {
       return UIResponse.error('Failed to set local user: $e');
     }
   }
-  
+
   /// Logout user
   Future<UIResponse> logout() async {
     try {
@@ -236,7 +236,33 @@ class UIBridge {
       return UIResponse.error('Failed to logout: $e');
     }
   }
-  
+
+  /// Get organization information from server
+  Future<Map<String, dynamic>?> getOrganizationInfo() async {
+    try {
+      final result =
+          await _methodChannelInstance.invokeMethod('getOrganizationInfo');
+      final response = UIResponse.fromMap(Map<String, dynamic>.from(result));
+      return response.success ? response.data['organization'] : null;
+    } catch (e) {
+      print('Failed to get organization info: $e');
+      return null;
+    }
+  }
+
+  /// Get supported algorithms from server
+  Future<Map<String, dynamic>?> getServerAlgorithms() async {
+    try {
+      final result =
+          await _methodChannelInstance.invokeMethod('getServerAlgorithms');
+      final response = UIResponse.fromMap(Map<String, dynamic>.from(result));
+      return response.success ? response.data['algorithms'] : null;
+    } catch (e) {
+      print('Failed to get server algorithms: $e');
+      return null;
+    }
+  }
+
   // ===========================
   // CHAT OPERATIONS
   // ===========================

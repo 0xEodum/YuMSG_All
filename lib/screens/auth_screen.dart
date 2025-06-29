@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:yumsg/widgets/scrollable_card.dart';
 import '../services/app_state_service.dart';
+import '../services/ui_bridge.dart';
+import '../models/organization_models.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -12,6 +14,8 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+
+  final UIBridge _uiBridge = UIBridge.instance;
   
   bool _securityInfoOpen = false;
   bool _isLoading = false;
@@ -24,21 +28,16 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   final TextEditingController _confirmPasswordController = TextEditingController();
   final TextEditingController _localUsernameController = TextEditingController();
 
-  // Данные организации (получаются с сервера в реальном приложении)
-  final OrganizationInfo _organization = OrganizationInfo(
-    name: "Orochi Technologies (大蛇)",
-    algorithms: AlgorithmInfo(
-      keyExchange: "SNTRU Prime",
-      encryption: "AES-256",
-      signature: "Falcon",
-    ),
-  );
+  // Данные организации, получаемые с сервера
+  OrganizationInfo? _organization;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    
+
+    _loadOrganizationInfo();
+
     // Слушаем изменения вкладок для перестройки UI
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
@@ -117,13 +116,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Информация об организации
-        _buildOrganizationInfo(isDark),
-        const SizedBox(height: 24),
-        
-        // Параметры безопасности
-        _buildSecurityInfo(isDark),
-        const SizedBox(height: 24),
+        if (_organization != null) ...[
+          // Информация об организации
+          _buildOrganizationInfo(isDark),
+          const SizedBox(height: 24),
+
+          // Параметры безопасности
+          _buildSecurityInfo(isDark),
+          const SizedBox(height: 24),
+        ],
         
         // Табы для переключения между входом и регистрацией
         _buildTabBar(isDark),
@@ -183,11 +184,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildOrganizationInfo(bool isDark) {
+    final org = _organization;
+    if (org == null) {
+      return const SizedBox.shrink();
+    }
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark 
-            ? const Color(0xFF581C87).withOpacity(0.2) 
+        color: isDark
+            ? const Color(0xFF581C87).withOpacity(0.2)
             : const Color(0xFFF3E8FF),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -205,7 +210,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             ),
             child: Center(
               child: Text(
-                _organization.name.substring(0, 1),
+                org.name.isNotEmpty ? org.name.substring(0, 1) : '?',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -221,7 +226,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           // Название организации
           Expanded(
             child: Text(
-              _organization.name,
+              org.name,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -237,6 +242,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildSecurityInfo(bool isDark) {
+    if (_organization == null) {
+      return const SizedBox.shrink();
+    }
     return Container(
       decoration: BoxDecoration(
         border: Border.all(
@@ -299,11 +307,22 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               ),
               child: Column(
                 children: [
-                  _buildSecurityParameter('Обмен ключами:', _organization.algorithms.keyExchange, isDark),
-                  const SizedBox(height: 8),
-                  _buildSecurityParameter('Шифрование сообщений:', _organization.algorithms.encryption, isDark),
-                  const SizedBox(height: 8),
-                  _buildSecurityParameter('Цифровая подпись:', _organization.algorithms.signature, isDark),
+                  if (_organization!.supportedAlgorithms != null) ...[
+                    _buildSecurityParameter(
+                        'Обмен ключами:',
+                        _organization!.supportedAlgorithms!.kemAlgorithm,
+                        isDark),
+                    const SizedBox(height: 8),
+                    _buildSecurityParameter(
+                        'Шифрование сообщений:',
+                        _organization!.supportedAlgorithms!.symmetricAlgorithm,
+                        isDark),
+                    const SizedBox(height: 8),
+                    _buildSecurityParameter(
+                        'Цифровая подпись:',
+                        _organization!.supportedAlgorithms!.signatureAlgorithm,
+                        isDark),
+                  ],
                 ],
               ),
             ) : null,
@@ -658,6 +677,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
+  Future<void> _loadOrganizationInfo() async {
+    final mode = AppStateService.getAppMode();
+    if (mode == 'server') {
+      final orgMap = await _uiBridge.getOrganizationInfo();
+      if (orgMap != null && mounted) {
+        setState(() {
+          _organization = OrganizationInfo.fromMap(orgMap);
+        });
+      }
+    }
+  }
+
   void _handleBack() {
     // Получаем логически предыдущий экран
     final previousRoute = AppStateService.getPreviousRoute(AppScreen.auth);
@@ -681,22 +712,28 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       _error = null;
     });
 
-    // Плейсхолдер для запроса авторизации
-    await Future.delayed(const Duration(seconds: 2));
+    final response = await _uiBridge.authenticateUser(
+      username: _emailController.text,
+      password: _passwordController.text,
+    );
 
     if (!mounted) return;
 
-    // Имитация успешной авторизации
-    await AppStateService.saveUserSession(
-      username: _emailController.text,
-      token: 'mock_jwt_token',
-      organizationId: 'mock_org_id',
-    );
+    if (response.success) {
+      await AppStateService.saveUserSession(
+        username: _emailController.text,
+        token: response.data['token'] ?? '',
+        organizationId: _organization?.id,
+      );
 
-    setState(() => _isLoading = false);
-
-    // Переход к списку чатов
-    Navigator.pushReplacementNamed(context, '/chat-list');
+      setState(() => _isLoading = false);
+      Navigator.pushReplacementNamed(context, '/chat-list');
+    } else {
+      setState(() {
+        _isLoading = false;
+        _error = response.message;
+      });
+    }
   }
 
   void _handleRegister() async {
@@ -718,22 +755,42 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       _error = null;
     });
 
-    // Плейсхолдер для запроса регистрации
-    await Future.delayed(const Duration(seconds: 2));
+    final response = await _uiBridge.registerUser(
+      username: _usernameController.text,
+      password: _passwordController.text,
+      email: _emailController.text,
+    );
 
     if (!mounted) return;
 
-    // Имитация успешной регистрации
-    await AppStateService.saveUserSession(
-      username: _emailController.text,
-      token: 'mock_jwt_token',
-      organizationId: 'mock_org_id',
-    );
+    if (response.success) {
+      // После успешной регистрации выполняем вход
+      final loginResponse = await _uiBridge.authenticateUser(
+        username: _usernameController.text,
+        password: _passwordController.text,
+      );
 
-    setState(() => _isLoading = false);
+      if (loginResponse.success) {
+        await AppStateService.saveUserSession(
+          username: _usernameController.text,
+          token: loginResponse.data['token'] ?? '',
+          organizationId: _organization?.id,
+        );
 
-    // Переход к списку чатов
-    Navigator.pushReplacementNamed(context, '/chat-list');
+        setState(() => _isLoading = false);
+        Navigator.pushReplacementNamed(context, '/chat-list');
+      } else {
+        setState(() {
+          _isLoading = false;
+          _error = loginResponse.message;
+        });
+      }
+    } else {
+      setState(() {
+        _isLoading = false;
+        _error = response.message;
+      });
+    }
   }
 
   void _handleLocalAuth() async {
@@ -747,35 +804,20 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       _error = null;
     });
 
-    // Плейсхолдер для локальной авторизации
-    await Future.delayed(const Duration(seconds: 1));
+    final response =
+        await _uiBridge.setLocalUser(username: _localUsernameController.text);
 
     if (!mounted) return;
 
-    await AppStateService.saveLocalUser(_localUsernameController.text);
-
-    setState(() => _isLoading = false);
-
-    // Переход к списку чатов
-    Navigator.pushReplacementNamed(context, '/chat-list');
+    if (response.success) {
+      await AppStateService.saveLocalUser(_localUsernameController.text);
+      setState(() => _isLoading = false);
+      Navigator.pushReplacementNamed(context, '/chat-list');
+    } else {
+      setState(() {
+        _isLoading = false;
+        _error = response.message;
+      });
+    }
   }
-}
-
-class OrganizationInfo {
-  final String name;
-  final AlgorithmInfo algorithms;
-
-  OrganizationInfo({required this.name, required this.algorithms});
-}
-
-class AlgorithmInfo {
-  final String keyExchange;
-  final String encryption;
-  final String signature;
-
-  AlgorithmInfo({
-    required this.keyExchange,
-    required this.encryption,
-    required this.signature,
-  });
 }

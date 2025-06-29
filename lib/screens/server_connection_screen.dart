@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:yumsg/widgets/scrollable_card.dart';
 import '../services/app_state_service.dart';
 import '../constants/enums.dart';
+import '../services/ui_bridge.dart';
+import '../models/organization_models.dart';
 
 class ServerConnectionScreen extends StatefulWidget {
   const ServerConnectionScreen({super.key});
@@ -15,6 +17,8 @@ class ServerConnectionScreen extends StatefulWidget {
 class _ServerConnectionScreenState extends State<ServerConnectionScreen> {
   final TextEditingController _ipController = TextEditingController();
   final TextEditingController _portController = TextEditingController();
+
+  final UIBridge _uiBridge = UIBridge.instance;
   
   bool _isConnecting = false;
   ConnectionStatus? _connectionStatus;
@@ -455,38 +459,46 @@ class _ServerConnectionScreenState extends State<ServerConnectionScreen> {
       );
     });
 
-    // Имитация проверки соединения
-    await Future.delayed(const Duration(seconds: 2));
+    final response = await _uiBridge.connectToServer(
+      host: _ipController.text,
+      port: int.tryParse(_portController.text) ?? 0,
+    );
 
     if (!mounted) return;
 
-    // Имитация успешного подключения (70% успеха)
-    final isSuccess = DateTime.now().millisecond % 10 < 7;
-
     setState(() {
       _isConnecting = false;
-      if (isSuccess) {
+      if (response.success) {
         _connectionStatus = ConnectionStatus(
           state: ServerConnectionState.success,
-          message: 'Подключение установлено успешно',
+          message: response.message.isNotEmpty
+              ? response.message
+              : 'Подключение установлено успешно',
         );
       } else {
         _connectionStatus = ConnectionStatus(
           state: ServerConnectionState.error,
-          message: 'Не удалось подключиться к серверу. Проверьте адрес и порт.',
+          message: response.message.isNotEmpty
+              ? response.message
+              : 'Не удалось подключиться к серверу. Проверьте адрес и порт.',
         );
       }
     });
 
-    // Если подключение успешно, сохраняем конфигурацию и переходим дальше
-    if (isSuccess) {
+    if (response.success) {
+      String? orgName;
+      final orgMap = await _uiBridge.getOrganizationInfo();
+      if (orgMap != null) {
+        final orgInfo = OrganizationInfo.fromMap(orgMap);
+        orgName = orgInfo.name;
+      }
+
       await AppStateService.saveServerConfig(
         ip: _ipController.text,
         port: _portController.text,
-        organizationName: 'Orochi Technologies (大蛇)', // Плейсхолдер
+        organizationName: orgName,
       );
 
-      await Future.delayed(const Duration(seconds: 1));
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/auth');
       }
