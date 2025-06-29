@@ -1,6 +1,7 @@
-// screens/mode_selection_screen.dart
 import 'package:flutter/material.dart';
 import '../services/app_state_service.dart';
+import '../services/ui_bridge.dart';
+import '../models/data_models.dart';
 
 class ModeSelectionScreen extends StatefulWidget {
   const ModeSelectionScreen({super.key});
@@ -10,7 +11,97 @@ class ModeSelectionScreen extends StatefulWidget {
 }
 
 class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
+  final UIBridge _uiBridge = UIBridge.instance;
+  
   String? selectedMode;
+  bool _isLoading = false;
+  String? _error;
+  
+  @override
+  void initState() {
+    super.initState();
+    _initializeUIBridge();
+    _listenToEvents();
+  }
+  
+  /// Initialize UIBridge
+  Future<void> _initializeUIBridge() async {
+    try {
+      await _uiBridge.initialize();
+      print('UIBridge initialized in ModeSelectionScreen');
+      
+      // Get current app mode if any
+      final currentMode = await _uiBridge.getAppMode();
+      if (currentMode != null && mounted) {
+        setState(() {
+          selectedMode = currentMode.toLowerCase();
+        });
+      }
+    } catch (e) {
+      print('Failed to initialize UIBridge: $e');
+      if (mounted) {
+        setState(() {
+          _error = 'Ошибка инициализации приложения';
+        });
+      }
+    }
+  }
+  
+  /// Listen to UIBridge events
+  void _listenToEvents() {
+    // Listen for app state changes
+    _uiBridge.addEventListener('APP_STATE_CHANGED', (data) {
+      final state = data['state'] as String?;
+      if (state != null) {
+        print('App state changed to: $state');
+        _handleAppStateChange(AppState.fromString(state));
+      }
+    });
+    
+    // Listen for mode selection confirmation
+    _uiBridge.addEventListener('MODE_SELECTED', (data) {
+      final mode = data['mode'] as String?;
+      if (mode != null && mounted) {
+        print('Mode selected confirmed: $mode');
+        _navigateToNextScreen(mode);
+      }
+    });
+    
+    // Listen for errors
+    _uiBridge.addEventListener('ERROR_OCCURRED', (data) {
+      final message = data['message'] as String?;
+      if (message != null && mounted) {
+        setState(() {
+          _error = message;
+          _isLoading = false;
+        });
+      }
+    });
+  }
+  
+  /// Handle app state changes
+  void _handleAppStateChange(AppState state) {
+    switch (state) {
+      case AppState.serverConnection:
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/server-connection');
+        }
+        break;
+      case AppState.authentication:
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/auth');
+        }
+        break;
+      case AppState.chatList:
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/chat-list');
+        }
+        break;
+      default:
+        // Stay on current screen
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +177,7 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: isDark ? const Color(0xFF8B5CF6) : const Color(0xFF7C3AED),
+                color: isDark ? Colors.white : const Color(0xFF1F2937),
               ),
               textAlign: TextAlign.center,
             ),
@@ -94,25 +185,32 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
             
             // Режим сервера
             _buildModeOption(
-              isDark: isDark,
               mode: 'server',
+              icon: Icons.cloud_outlined,
               title: 'Серверный режим',
-              description: 'Подключение к корпоративному серверу',
-              icon: Icons.dns,
+              description: 'Подключение к корпоративному серверу для обмена сообщениями',
+              isDark: isDark,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             
             // Локальный режим
             _buildModeOption(
-              isDark: isDark,
               mode: 'local',
+              icon: Icons.wifi_tethering,
               title: 'Локальный режим',
-              description: 'Работа в локальной сети',
-              icon: Icons.computer,
+              description: 'Прямое подключение к устройствам в локальной сети',
+              isDark: isDark,
             ),
+            
+            // Ошибка
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              _buildErrorMessage(_error!, isDark),
+            ],
+            
             const SizedBox(height: 24),
             
-            // Кнопка продолжить
+            // Кнопка продолжения
             _buildContinueButton(isDark),
           ],
         ),
@@ -121,80 +219,49 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   }
 
   Widget _buildModeOption({
-    required bool isDark,
     required String mode,
+    required IconData icon,
     required String title,
     required String description,
-    required IconData icon,
+    required bool isDark,
   }) {
     final isSelected = selectedMode == mode;
     
     return InkWell(
-      onTap: () => setState(() => selectedMode = mode),
+      onTap: _isLoading ? null : () {
+        setState(() {
+          selectedMode = mode;
+          _error = null;
+        });
+      },
       borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           border: Border.all(
             color: isSelected
-                ? const Color(0xFF8B5CF6)
-                : isDark
-                    ? const Color(0xFF374151)
-                    : const Color(0xFFE5E7EB),
-            width: 2,
+                ? (isDark ? const Color(0xFF8B5CF6) : const Color(0xFF7C3AED))
+                : (isDark ? const Color(0xFF374151) : const Color(0xFFE5E7EB)),
+            width: isSelected ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(12),
           color: isSelected
-              ? isDark
-                  ? const Color(0xFF374151)
-                  : const Color(0xFFF3E8FF)
+              ? (isDark
+                  ? const Color(0xFF8B5CF6).withOpacity(0.1)
+                  : const Color(0xFF7C3AED).withOpacity(0.05))
               : null,
         ),
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            // Radio button
-            Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected
-                      ? const Color(0xFF8B5CF6)
-                      : isDark
-                          ? const Color(0xFF6B7280)
-                          : const Color(0xFFD1D5DB),
-                  width: 2,
-                ),
-                color: isSelected ? const Color(0xFF8B5CF6) : null,
-              ),
-              child: isSelected
-                  ? const Center(
-                      child: CircleAvatar(
-                        radius: 4,
-                        backgroundColor: Colors.white,
-                      ),
-                    )
-                  : null,
+            Icon(
+              icon,
+              size: 40,
+              color: isSelected
+                  ? (isDark ? const Color(0xFF8B5CF6) : const Color(0xFF7C3AED))
+                  : (isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280)),
             ),
-            const SizedBox(width: 12),
-            
-            // Icon
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF581C87) : const Color(0xFFEDE9FE),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon,
-                color: isDark ? const Color(0xFF8B5CF6) : const Color(0xFF7C3AED),
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            
-            // Text content
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,20 +270,31 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
                     title,
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white : const Color(0xFF1F2937),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     description,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
                     ),
                   ),
                 ],
               ),
+            ),
+            Radio<String>(
+              value: mode,
+              groupValue: selectedMode,
+              onChanged: _isLoading ? null : (value) {
+                setState(() {
+                  selectedMode = value;
+                  _error = null;
+                });
+              },
+              activeColor: isDark ? const Color(0xFF8B5CF6) : const Color(0xFF7C3AED),
             ),
           ],
         ),
@@ -225,35 +303,81 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
   }
 
   Widget _buildContinueButton(bool isDark) {
-    final isEnabled = selectedMode != null;
-    
     return SizedBox(
       height: 48,
       child: ElevatedButton(
-        onPressed: isEnabled ? _handleContinue : null,
+        onPressed: selectedMode == null || _isLoading ? null : _handleContinue,
         style: ElevatedButton.styleFrom(
-          backgroundColor: isEnabled
-              ? const Color(0xFF7C3AED)
-              : isDark
-                  ? const Color(0xFF374151)
-                  : const Color(0xFFE5E7EB),
-          foregroundColor: isEnabled
-              ? Colors.white
-              : isDark
+          backgroundColor: selectedMode != null
+              ? (isDark ? const Color(0xFF8B5CF6) : const Color(0xFF7C3AED))
+              : (isDark
                   ? const Color(0xFF6B7280)
-                  : const Color(0xFF9CA3AF),
+                  : const Color(0xFF9CA3AF)),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
         ),
-        child: const Text(
-          'Продолжить',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
+        child: _isLoading
+            ? const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Подождите...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              )
+            : const Text(
+                'Продолжить',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildErrorMessage(String message, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark 
+            ? const Color(0xFF7F1D1D).withOpacity(0.2) 
+            : const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.error,
+            color: isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626),
+            size: 20,
           ),
-        ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -269,21 +393,58 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
     );
   }
 
-
+  /// Handle continue button press
   void _handleContinue() async {
     if (selectedMode == null) return;
     
-    // Сохраняем выбранный режим
-    await AppStateService.saveAppMode(selectedMode!);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     
+    try {
+      // Call native method to select mode
+      final response = await _uiBridge.selectMode(selectedMode!);
+      
+      if (response.success) {
+        // Save mode locally for Flutter
+        await AppStateService.saveAppMode(selectedMode!);
+        
+        // Navigation will be handled by event listener
+        // based on APP_STATE_CHANGED event from native
+      } else {
+        setState(() {
+          _error = response.message;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Ошибка при выборе режима: $e';
+        _isLoading = false;
+      });
+    }
+  }
+  
+  /// Navigate to next screen based on mode
+  void _navigateToNextScreen(String mode) {
     if (!mounted) return;
     
-    // Навигация в зависимости от выбранного режима
-    if (selectedMode == 'server') {
+    // Navigation logic based on selected mode
+    if (mode.toUpperCase() == 'SERVER') {
       Navigator.pushReplacementNamed(context, '/server-connection');
     } else {
-      // Для локального режима переходим сразу к авторизации
+      // For local mode, go directly to authentication
       Navigator.pushReplacementNamed(context, '/auth');
     }
+  }
+  
+  @override
+  void dispose() {
+    // Remove event listeners
+    _uiBridge.removeEventListener('APP_STATE_CHANGED', (_) {});
+    _uiBridge.removeEventListener('MODE_SELECTED', (_) {});
+    _uiBridge.removeEventListener('ERROR_OCCURRED', (_) {});
+    super.dispose();
   }
 }
