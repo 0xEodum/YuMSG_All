@@ -725,6 +725,24 @@ public class UIBridge implements MethodChannel.MethodCallHandler, EventChannel.S
                 chatMap.put("keyEstablishmentStatus", chat.getKeyEstablishmentStatus());
                 chatMap.put("fingerprint", chat.getFingerprint());
                 chatMap.put("isReadyForMessaging", chat.isReadyForMessaging());
+
+                PeerCryptoInfo peerInfo = chat.getPeerCryptoInfo();
+                if (peerInfo != null) {
+                    Map<String, Object> peerMap = new HashMap<>();
+                    peerMap.put("peerId", peerInfo.getPeerId());
+                    peerMap.put("peerSignatureAlgorithm", peerInfo.getPeerSignatureAlgorithm());
+                    peerMap.put("verified", peerInfo.isVerified());
+
+                    if (peerInfo.getPeerAlgorithms() != null) {
+                        Map<String, Object> algMap = new HashMap<>();
+                        algMap.put("kemAlgorithm", peerInfo.getPeerAlgorithms().getKemAlgorithm());
+                        algMap.put("symmetricAlgorithm", peerInfo.getPeerAlgorithms().getSymmetricAlgorithm());
+                        algMap.put("signatureAlgorithm", peerInfo.getPeerAlgorithms().getSignatureAlgorithm());
+                        peerMap.put("algorithms", algMap);
+                    }
+
+                    chatMap.put("peerCryptoInfo", peerMap);
+                }
                 chatList.add(chatMap);
             }
             

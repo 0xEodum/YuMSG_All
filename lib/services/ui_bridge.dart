@@ -263,6 +263,19 @@ class UIBridge {
     }
   }
 
+  /// Get current crypto algorithms from preferences
+  Future<Map<String, dynamic>?> getCryptoAlgorithms() async {
+    try {
+      final result =
+          await _methodChannelInstance.invokeMethod('getCryptoAlgorithms');
+      final response = UIResponse.fromMap(Map<String, dynamic>.from(result));
+      return response.success ? response.data['algorithms'] : null;
+    } catch (e) {
+      print('Failed to get crypto algorithms: $e');
+      return null;
+    }
+  }
+
   /// Generate and save organization signature keys
   Future<UIResponse> generateOrganizationKeys() async {
     try {

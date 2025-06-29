@@ -2,42 +2,95 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
+import 'dart:convert';
 import 'package:yumsg/widgets/scrollable_card.dart';
 import '../services/app_state_service.dart';
-import '../screens/chat_screen.dart';
+import '../services/ui_bridge.dart';
 import '../constants/enums.dart';
 import '../models/chat_models.dart';
+import '../models/organization_models.dart';
 
 class ChatInfoScreen extends StatefulWidget {
   final ChatContact contact;
-  
-  const ChatInfoScreen({super.key, required this.contact});
+  final ChatInfo? chat;
+
+  const ChatInfoScreen({
+    super.key,
+    required this.contact,
+    this.chat,
+  });
 
   @override
   State<ChatInfoScreen> createState() => _ChatInfoScreenState();
 }
 
 class _ChatInfoScreenState extends State<ChatInfoScreen> {
+  final UIBridge _uiBridge = UIBridge.instance;
   // Состояние шифрования
   EncryptionStatus _encryptionStatus = EncryptionStatus.active;
   
-  // Мокап данных производной ключей (для демонстрации)
-  final String _keyDerivativeHex = "A4F2B8C9E6D7F1A3B5C8D2E9F4A7B1C6D8E3F9A2B4C7D1E6F8A5B9C3D7E4F2A8";
-  
-  // Генерируем псевдослучайную сетку на основе производной ключей
-  late List<List<int>> _keyVisualization;
+  String? _fingerprint;
+  List<List<int>> _keyVisualization = [];
+
+  AlgorithmInfo? _myAlgorithms;
+  AlgorithmInfo? _peerAlgorithms;
+  AlgorithmInfo? _serverAlgorithms;
 
   @override
   void initState() {
     super.initState();
-    _generateKeyVisualization();
+    _loadSecurityInfo();
   }
 
-  void _generateKeyVisualization() {
-    // Используем хеш производной для генерации детерминированной сетки
-    final random = math.Random(_keyDerivativeHex.hashCode);
-    _keyVisualization = List.generate(8, (i) => 
-      List.generate(8, (j) => random.nextInt(4)) // 4 уровня насыщенности (0-3)
+  Future<void> _loadSecurityInfo() async {
+    if (widget.chat != null) {
+      final info = await _uiBridge.getChatInfo(chatId: widget.chat!.id);
+      if (info != null) {
+        final fp = info['fingerprint'] as String?;
+        final peer = info['peerCryptoInfo'];
+        final statusStr = info['keyEstablishmentStatus'] as String?;
+        setState(() {
+          _fingerprint = fp;
+          if (statusStr != null) {
+            _encryptionStatus = EncryptionStatus.values.firstWhere(
+              (e) => e.name == statusStr.toLowerCase(),
+              orElse: () => EncryptionStatus.active,
+            );
+          }
+          if (peer != null && peer['algorithms'] != null) {
+            _peerAlgorithms = AlgorithmInfo.fromMap(
+                Map<String, dynamic>.from(peer['algorithms']));
+          }
+        });
+        if (fp != null) {
+          _generateKeyVisualization(fp);
+          setState(() {});
+        }
+      }
+    }
+
+    final myAlg = await _uiBridge.getCryptoAlgorithms();
+    if (myAlg != null) {
+      setState(() {
+        _myAlgorithms = AlgorithmInfo.fromMap(myAlg);
+      });
+    }
+
+    if (AppStateService.getAppMode() == 'server') {
+      final serverAlg = await _uiBridge.getServerAlgorithms();
+      if (serverAlg != null) {
+        setState(() {
+          _serverAlgorithms = AlgorithmInfo.fromMap(serverAlg);
+        });
+      }
+    }
+  }
+
+  void _generateKeyVisualization(String hex) {
+    final random = math.Random(hex.hashCode);
+    _keyVisualization = List.generate(
+      8,
+      (i) => List.generate(8, (j) => random.nextInt(4)),
     );
   }
 
@@ -371,27 +424,30 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
 
   Widget _buildKeyGrid() {
     final baseColor = Theme.of(context).colorScheme.primary;
-    
+    if (_keyVisualization.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
-      children: List.generate(8, (row) => 
-        Expanded(
-          child: Row(
-            children: List.generate(8, (col) {
-              final intensity = _keyVisualization[row][col];
-              final opacity = 0.3 + (intensity * 0.2); // 0.3, 0.5, 0.7, 0.9
-              
-              return Expanded(
-                child: Container(
-                  margin: const EdgeInsets.all(0.5),
-                  decoration: BoxDecoration(
-                    color: baseColor.withOpacity(opacity),
+      children: List.generate(8, (row) =>
+          Expanded(
+            child: Row(
+              children: List.generate(8, (col) {
+                final intensity = _keyVisualization[row][col];
+                final opacity = 0.3 + (intensity * 0.2);
+
+                return Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.all(0.5),
+                    decoration: BoxDecoration(
+                      color: baseColor.withOpacity(opacity),
+                    ),
                   ),
-                ),
-              );
-            }),
+                );
+              }),
+            ),
           ),
         ),
-      ),
     );
   }
 
@@ -409,38 +465,29 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
         ),
         const SizedBox(height: 12),
         
-        // В серверном режиме показываем один блок
-        if (appMode == 'server') 
-          _buildAlgorithmBlock(
-            title: 'Алгоритмы организации',
-            algorithms: {
-              'KEM': 'Kyber-768',
-              'Шифрование': 'AES-256-GCM',
-              'Подпись': 'Rainbow III',
-            },
-            isDark: isDark,
-          )
+        if (appMode == 'server')
+          _serverAlgorithms != null
+              ? _buildAlgorithmBlock(
+                  title: 'Алгоритмы организации',
+                  algorithms: _toAlgMap(_serverAlgorithms!),
+                  isDark: isDark,
+                )
+              : const Text('Нет данных')
         else ...[
-          // В локальном режиме показываем два блока
-          _buildAlgorithmBlock(
-            title: 'Мои алгоритмы',
-            algorithms: {
-              'KEM': 'NTRU Prime',
-              'Шифрование': 'AES-256',
-              'Подпись': 'Falcon-512',
-            },
-            isDark: isDark,
-          ),
-          const SizedBox(height: 12),
-          _buildAlgorithmBlock(
-            title: 'Алгоритмы собеседника',
-            algorithms: {
-              'KEM': 'SABER',
-              'Шифрование': 'ChaCha20',
-              'Подпись': 'Dilithium',
-            },
-            isDark: isDark,
-          ),
+          if (_myAlgorithms != null)
+            _buildAlgorithmBlock(
+              title: 'Мои алгоритмы',
+              algorithms: _toAlgMap(_myAlgorithms!),
+              isDark: isDark,
+            ),
+          if (_peerAlgorithms != null) ...[
+            const SizedBox(height: 12),
+            _buildAlgorithmBlock(
+              title: 'Алгоритмы собеседника',
+              algorithms: _toAlgMap(_peerAlgorithms!),
+              isDark: isDark,
+            ),
+          ],
         ],
       ],
     );
@@ -498,6 +545,14 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
         ],
       ),
     );
+  }
+
+  Map<String, String> _toAlgMap(AlgorithmInfo info) {
+    return {
+      'KEM': info.kemAlgorithm,
+      'Шифрование': info.symmetricAlgorithm,
+      'Подпись': info.signatureAlgorithm,
+    };
   }
 
   Widget _buildChatSettingsSection(bool isDark) {
@@ -678,7 +733,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
                   ),
                 ),
                 child: SelectableText(
-                  _keyDerivativeHex,
+                  _fingerprint ?? '---',
                   style: TextStyle(
                     fontSize: 12,
                     fontFamily: 'monospace',
@@ -702,10 +757,12 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        Clipboard.setData(ClipboardData(text: _keyDerivativeHex));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Скопировано в буфер обмена')),
-                        );
+                        if (_fingerprint != null) {
+                          Clipboard.setData(ClipboardData(text: _fingerprint!));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Скопировано в буфер обмена')),
+                          );
+                        }
                       },
                       icon: const Icon(Icons.copy, size: 16),
                       label: const Text('Копировать'),
@@ -739,21 +796,22 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
             child: const Text('Отмена'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
               setState(() {
                 _encryptionStatus = EncryptionStatus.initializing;
               });
-              // Имитация процесса инициализации
-              Future.delayed(const Duration(seconds: 3), () {
-                if (mounted) {
-                  setState(() {
-                    _encryptionStatus = EncryptionStatus.active;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Инициализация завершена')),
-                  );
-                }
+              if (widget.chat != null) {
+                await _uiBridge.clearChatHistory(chatId: widget.chat!.id);
+              }
+              Future.delayed(const Duration(seconds: 2), () {
+                if (!mounted) return;
+                setState(() {
+                  _encryptionStatus = EncryptionStatus.active;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Инициализация завершена')),
+                );
               });
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3B82F6)),
@@ -764,10 +822,24 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
     );
   }
 
-  void _handleExportChat() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Экспорт чата начат')),
-    );
+  Future<void> _handleExportChat() async {
+    if (widget.chat == null) return;
+    try {
+      final messages = await _uiBridge.getMessages(chatId: widget.chat!.id);
+      final data = const JsonEncoder.withIndent('  ').convert(messages);
+      await Clipboard.setData(ClipboardData(text: data));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('История чата скопирована')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка экспорта чата')),
+        );
+      }
+    }
   }
 
   void _handleDeleteChat() {
@@ -782,12 +854,22 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
             child: const Text('Отмена'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.pop(context); // Возвращаемся к списку чатов
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Чат удален')),
-              );
+              if (widget.chat != null) {
+                final result = await _uiBridge.deleteChat(chatId: widget.chat!.id);
+                if (!mounted) return;
+                if (result.success) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Чат удален')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(result.message)),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
             child: const Text('Удалить'),
@@ -809,11 +891,22 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
             child: const Text('Отмена'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Чат очищен')),
-              );
+              if (widget.chat != null) {
+                final result =
+                    await _uiBridge.clearChatHistory(chatId: widget.chat!.id);
+                if (!mounted) return;
+                if (result.success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Чат очищен')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(result.message)),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B)),
             child: const Text('Очистить'),

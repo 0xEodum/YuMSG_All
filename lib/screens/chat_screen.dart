@@ -713,7 +713,10 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ChatInfoScreen(contact: widget.contact),
+        builder: (context) => ChatInfoScreen(
+          contact: widget.contact,
+          chat: widget.chat,
+        ),
       ),
     );
   }
