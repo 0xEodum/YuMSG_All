@@ -1,4 +1,4 @@
-package com.yumsg.core.enums;
+package com.example.yumsg.core.enums;
 
 public enum AppState {
     INITIALIZING, MODE_SELECTION, SERVER_CONNECTION, AUTHENTICATION,

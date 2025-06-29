@@ -1,11 +1,11 @@
-package com.yumsg.core.state;
+package com.example.yumsg.core.state;
 
 import android.util.Log;
 
-import com.yumsg.core.data.*;
-import com.yumsg.core.enums.*;
-import com.yumsg.core.storage.SharedPreferencesManager;
-import com.yumsg.core.session.SessionManager;
+import com.example.yumsg.core.data.*;
+import com.example.yumsg.core.enums.*;
+import com.example.yumsg.core.storage.SharedPreferencesManager;
+import com.example.yumsg.core.session.SessionManager;
 
 import java.util.ArrayList;
 import java.util.List;

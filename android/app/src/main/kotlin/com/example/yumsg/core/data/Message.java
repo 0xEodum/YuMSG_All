@@ -1,6 +1,6 @@
-package com.yumsg.core.data;
+package com.example.yumsg.core.data;
 
-import com.yumsg.core.enums.MessageStatus;
+import com.example.yumsg.core.enums.MessageStatus;
 
 public class Message {
     private long id;

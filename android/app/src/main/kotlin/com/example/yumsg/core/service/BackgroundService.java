@@ -1,19 +1,19 @@
-package com.yumsg.core.service;
+package com.example.yumsg.core.service;
 
 import android.content.Context;
 import android.util.Log;
 
-import com.yumsg.core.data.*;
-import com.yumsg.core.enums.*;
-import com.yumsg.core.storage.SharedPreferencesManager;
-import com.yumsg.core.storage.DatabaseManager;
-import com.yumsg.core.crypto.CryptoManager;
-import com.yumsg.core.state.StateManager;
-import com.yumsg.core.session.SessionManager;
-import com.yumsg.core.network.NetworkManager;
-import com.yumsg.core.network.ServerNetworkManager;
-import com.yumsg.core.network.LocalNetworkManager;
-import com.yumsg.core.ui.UIBridge;
+import com.example.yumsg.core.data.*;
+import com.example.yumsg.core.enums.*;
+import com.example.yumsg.core.storage.SharedPreferencesManager;
+import com.example.yumsg.core.storage.DatabaseManager;
+import com.example.yumsg.core.crypto.CryptoManager;
+import com.example.yumsg.core.state.StateManager;
+import com.example.yumsg.core.session.SessionManager;
+import com.example.yumsg.core.network.NetworkManager;
+import com.example.yumsg.core.network.ServerNetworkManager;
+import com.example.yumsg.core.network.LocalNetworkManager;
+import com.example.yumsg.core.ui.UIBridge;
 import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
 
 import java.util.*;

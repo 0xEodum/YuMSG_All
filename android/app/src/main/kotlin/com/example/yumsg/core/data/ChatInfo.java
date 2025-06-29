@@ -1,9 +1,9 @@
-package com.yumsg.core.data;
+package com.example.yumsg.core.data;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import com.yumsg.core.enums.EncryptionStatus;
+import com.example.yumsg.core.enums.EncryptionStatus;
 
 public class ChatInfo {
     private String id;

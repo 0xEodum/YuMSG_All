@@ -1,4 +1,4 @@
-package com.yumsg.core.data;
+package com.example.yumsg.core.data;
 
 public class UserProfile {
     private String id;

@@ -1,4 +1,4 @@
-package com.yumsg.core.network;
+package com.example.yumsg.core.network;
 
 import android.content.Context;
 import android.util.Log;
@@ -8,10 +8,10 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
-import com.yumsg.core.data.*;
-import com.yumsg.core.enums.*;
-import com.yumsg.core.session.SessionManager;
-import com.yumsg.core.state.StateManager;
+import com.example.yumsg.core.data.*;
+import com.example.yumsg.core.enums.*;
+import com.example.yumsg.core.session.SessionManager;
+import com.example.yumsg.core.state.StateManager;
 
 import okhttp3.*;
 import okhttp3.logging.HttpLoggingInterceptor;

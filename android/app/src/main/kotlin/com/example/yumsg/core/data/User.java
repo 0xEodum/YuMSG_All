@@ -1,6 +1,6 @@
-package com.yumsg.core.data;
+package com.example.yumsg.core.data;
 
-import com.yumsg.core.enums.UserStatus;
+import com.example.yumsg.core.enums.UserStatus;
 
 public class User {
     private String id;

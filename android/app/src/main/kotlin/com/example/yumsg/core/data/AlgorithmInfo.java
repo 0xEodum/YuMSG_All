@@ -1,6 +1,6 @@
-package com.yumsg.core.data;
+package com.example.yumsg.core.data;
 
-import com.yumsg.core.enums.AlgorithmType;
+import com.example.yumsg.core.enums.AlgorithmType;
 
 public class AlgorithmInfo {
     private String name;
