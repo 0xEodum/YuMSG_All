@@ -4,11 +4,14 @@ import 'package:file_picker/file_picker.dart';
 import 'chat_info_screen.dart';
 import '../constants/file_types.dart';
 import '../models/chat_models.dart';
+import '../services/ui_bridge.dart';
+import '../services/app_state_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final ChatContact contact;
-  
-  const ChatScreen({super.key, required this.contact});
+  final ChatInfo? chat;
+
+  const ChatScreen({super.key, required this.contact, this.chat});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -18,84 +21,35 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _messageFocusNode = FocusNode();
-  
+
+  final UIBridge _uiBridge = UIBridge.instance;
+  late final String _currentUserId;
+
   bool _isTyping = false;
-  
-  // Примеры сообщений
-  final List<ChatMessage> _messages = [
-    ChatMessage(
-      id: 1,
-      text: "Привет! Как дела с проектом?",
-      isOwn: false,
-      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-      status: MessageStatus.delivered,
-    ),
-    ChatMessage(
-      id: 2,
-      text: "Все отлично! Отправляю презентацию для завтрашнего собрания. Проверь, пожалуйста, и дай обратную связь.",
-      isOwn: true,
-      timestamp: DateTime.now().subtract(const Duration(hours: 1, minutes: 45)),
-      status: MessageStatus.read,
-      file: FileAttachment(
-        name: 'Презентация проекта.pdf',
-        type: 'pdf',
-        size: '2.4 MB',
-        signatureStatus: SignatureStatus.verified,
-      ),
-    ),
-    ChatMessage(
-      id: 3,
-      text: "Спасибо! Посмотрю сегодня вечером",
-      isOwn: false,
-      timestamp: DateTime.now().subtract(const Duration(hours: 1, minutes: 30)),
-      status: MessageStatus.delivered,
-    ),
-    ChatMessage(
-      id: 4,
-      text: "Обновленная версия логотипа в новом стиле. Что думаешь?",
-      isOwn: false,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 45)),
-      status: MessageStatus.delivered,
-      file: FileAttachment(
-        name: 'Логотип компании v2.png',
-        type: 'png',
-        size: '124 KB',
-        signatureStatus: SignatureStatus.verified,
-      ),
-    ),
-    ChatMessage(
-      id: 5,
-      text: "Демо версия готова к тестированию",
-      isOwn: true,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 20)),
-      status: MessageStatus.delivered,
-      file: FileAttachment(
-        name: 'Demo_track_final.mp3',
-        type: 'mp3',
-        size: '4.8 MB',
-        signatureStatus: SignatureStatus.verified,
-      ),
-    ),
-    ChatMessage(
-      id: 6,
-      text: "Отправил архив с исходниками. Проверь целостность перед использованием!",
-      isOwn: false,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-      status: MessageStatus.delivered,
-      file: FileAttachment(
-        name: 'project_sources.zip',
-        type: 'zip',
-        size: '15.6 MB',
-        signatureStatus: SignatureStatus.invalid,
-      ),
-    ),
-  ];
+
+  List<ChatMessage> _messages = [];
+
+  late final Function(Map<String, dynamic>) _messageHandler;
+  late final Function(Map<String, dynamic>) _statusHandler;
+  late final Function(Map<String, dynamic>) _typingHandler;
+
+  @override
+  void initState() {
+    super.initState();
+    final session = AppStateService.getUserSession();
+    _currentUserId = session['username'] ?? AppStateService.getLocalUser() ?? '';
+    _loadMessages();
+    _listenEvents();
+  }
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
     _messageFocusNode.dispose();
+    _uiBridge.removeEventListener('MessageReceived', _messageHandler);
+    _uiBridge.removeEventListener('MessageStatusUpdated', _statusHandler);
+    _uiBridge.removeEventListener('TypingStatus', _typingHandler);
     super.dispose();
   }
 
@@ -593,10 +547,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                   color: isDark ? Colors.white : const Color(0xFF1F2937),
                 ),
                 onChanged: (text) {
-                  // Имитация индикатора "печатает"
-                  setState(() {
-                    _isTyping = text.isNotEmpty;
-                  });
+                  if (widget.chat != null) {
+                    _uiBridge.sendTypingStatus(
+                      chatId: widget.chat!.id,
+                      isTyping: text.isNotEmpty,
+                    );
+                  }
                 },
               ),
             ),
@@ -764,10 +720,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   void _pickFile() async {
     try {
+      if (widget.chat == null) return;
       FilePickerResult? result = await FilePicker.platform.pickFiles();
-      if (result != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Файл выбран: ${result.files.first.name}')),
+      if (result != null && result.files.single.path != null) {
+        await _uiBridge.sendFile(
+          chatId: widget.chat!.id,
+          filePath: result.files.single.path!,
+          fileName: result.files.single.name,
         );
       }
     } catch (e) {
@@ -778,21 +737,101 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   void _sendMessage() {
-    if (_messageController.text.trim().isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Отправлено: ${_messageController.text}')),
-      );
-      _messageController.clear();
-      setState(() {
-        _isTyping = false;
-      });
-    }
+    final text = _messageController.text.trim();
+    if (text.isEmpty || widget.chat == null) return;
+
+    _uiBridge
+        .sendMessage(chatId: widget.chat!.id, content: text)
+        .then((_) {});
+
+    _messageController.clear();
+    setState(() {
+      _isTyping = false;
+    });
   }
 
   void _openFile(FileAttachment file) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Открытие файла: ${file.name}')),
     );
+  }
+
+  Future<void> _loadMessages() async {
+    if (widget.chat == null) return;
+    final data = await _uiBridge.getMessages(chatId: widget.chat!.id);
+    setState(() {
+      _messages = data
+          .map((e) => ChatMessage.fromMap(e, currentUserId: _currentUserId))
+          .toList();
+    });
+    _scrollToBottom();
+  }
+
+  void _listenEvents() {
+    _messageHandler = (data) {
+      final msg = data['message'] as Map<String, dynamic>?;
+      if (msg != null && msg['chatId'] == widget.chat?.id) {
+        setState(() {
+          _messages.add(
+            ChatMessage.fromMap(msg, currentUserId: _currentUserId),
+          );
+        });
+        _scrollToBottom();
+      }
+    };
+
+    _statusHandler = (data) {
+      final id = data['messageId']?.toString();
+      final status = data['status'];
+      final index = _messages.indexWhere((m) => m.id == id);
+      if (index >= 0) {
+        setState(() {
+          _messages[index] = ChatMessage(
+            id: _messages[index].id,
+            text: _messages[index].text,
+            isOwn: _messages[index].isOwn,
+            timestamp: _messages[index].timestamp,
+            status: _parseStatus(status),
+            file: _messages[index].file,
+          );
+        });
+      }
+    };
+
+    _typingHandler = (data) {
+      if (data['chatId'] == widget.chat?.id) {
+        setState(() {
+          _isTyping = data['isTyping'] ?? false;
+        });
+      }
+    };
+
+    _uiBridge.addEventListener('MessageReceived', _messageHandler);
+    _uiBridge.addEventListener('MessageStatusUpdated', _statusHandler);
+    _uiBridge.addEventListener('TypingStatus', _typingHandler);
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  MessageStatus _parseStatus(dynamic status) {
+    switch (status?.toString().toLowerCase()) {
+      case 'sent':
+        return MessageStatus.sent;
+      case 'delivered':
+        return MessageStatus.delivered;
+      case 'read':
+        return MessageStatus.read;
+      default:
+        return MessageStatus.sending;
+    }
   }
 }
 

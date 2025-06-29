@@ -822,7 +822,6 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
   }
 
   void _handleChatTap(ChatInfo chat) {
-    // ОБНОВЛЕНО: Теперь переходим к экрану чата
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -832,6 +831,7 @@ class _ChatListScreenState extends State<ChatListScreen> with TickerProviderStat
             avatar: chat.avatar,
             isOnline: chat.isOnline,
           ),
+          chat: chat,
         ),
       ),
     );

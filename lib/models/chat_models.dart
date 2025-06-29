@@ -16,7 +16,7 @@ class ChatContact {
 }
 
 class ChatMessage {
-  final int id;
+  final String id;
   final String text;
   final bool isOwn;
   final DateTime timestamp;
@@ -31,6 +31,38 @@ class ChatMessage {
     required this.status,
     this.file,
   });
+
+  factory ChatMessage.fromMap(
+    Map<String, dynamic> map, {
+    required String currentUserId,
+  }) {
+    final attachment = map['attachmentData'];
+    return ChatMessage(
+      id: map['id']?.toString() ?? '',
+      text: map['content'] ?? '',
+      isOwn: map['senderId']?.toString() == currentUserId,
+      timestamp: map['timestamp'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['timestamp'])
+          : DateTime.now(),
+      status: _statusFromString(map['status']),
+      file: attachment is Map<String, dynamic>
+          ? FileAttachment.fromMap(attachment)
+          : null,
+    );
+  }
+
+  static MessageStatus _statusFromString(dynamic status) {
+    switch (status?.toString().toLowerCase()) {
+      case 'sent':
+        return MessageStatus.sent;
+      case 'delivered':
+        return MessageStatus.delivered;
+      case 'read':
+        return MessageStatus.read;
+      default:
+        return MessageStatus.sending;
+    }
+  }
 }
 
 class FileAttachment {
@@ -45,6 +77,20 @@ class FileAttachment {
     required this.size,
     required this.signatureStatus,
   });
+
+  factory FileAttachment.fromMap(Map<String, dynamic> map) {
+    final sizeBytes = map['fileSize'] ?? 0;
+    final sizeKb = (sizeBytes is num) ? sizeBytes / 1024 : 0;
+    final extension = (map['mimeType'] as String?)?.split('/')?.last ?? '';
+    return FileAttachment(
+      name: map['fileName'] ?? '',
+      type: extension,
+      size: sizeKb >= 1024
+          ? '${(sizeKb / 1024).toStringAsFixed(1)} MB'
+          : '${sizeKb.toStringAsFixed(0)} KB',
+      signatureStatus: SignatureStatus.verified,
+    );
+  }
 }
 
 class ChatInfo {
