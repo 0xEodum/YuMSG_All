@@ -263,6 +263,17 @@ class UIBridge {
     }
   }
 
+  /// Generate and save organization signature keys
+  Future<UIResponse> generateOrganizationKeys() async {
+    try {
+      final result =
+          await _methodChannelInstance.invokeMethod('generateOrganizationKeys');
+      return UIResponse.fromMap(Map<String, dynamic>.from(result));
+    } catch (e) {
+      return UIResponse.error('Failed to generate organization keys: $e');
+    }
+  }
+
   // ===========================
   // CHAT OPERATIONS
   // ===========================
