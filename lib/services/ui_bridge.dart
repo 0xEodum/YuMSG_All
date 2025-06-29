@@ -167,13 +167,11 @@ class UIBridge {
   Future<UIResponse> connectToServer({
     required String host,
     required int port,
-    required String organizationName,
   }) async {
     try {
       final result = await _methodChannelInstance.invokeMethod('connectToServer', {
         'host': host,
         'port': port,
-        'organizationName': organizationName,
       });
       return UIResponse.fromMap(Map<String, dynamic>.from(result));
     } catch (e) {

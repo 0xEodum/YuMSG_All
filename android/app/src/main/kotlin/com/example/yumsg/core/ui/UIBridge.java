@@ -507,14 +507,13 @@ public class UIBridge implements MethodChannel.MethodCallHandler, EventChannel.S
     private void handleConnectToServer(MethodCall call, MethodChannel.Result result) {
         String host = call.argument("host");
         Integer port = call.argument("port");
-        String organizationName = call.argument("organizationName");
-        
-        if (host == null || port == null || organizationName == null) {
-            result.error("INVALID_ARGUMENTS", "Host, port, and organizationName are required", null);
+
+        if (host == null || port == null) {
+            result.error("INVALID_ARGUMENTS", "Host and port are required", null);
             return;
         }
-        
-        backgroundService.connectToServer(host, port, organizationName)
+
+        backgroundService.connectToServer(host, port)
             .thenAccept(connectionResult -> {
                 mainHandler.post(() -> {
                     Map<String, Object> response = new HashMap<>();
