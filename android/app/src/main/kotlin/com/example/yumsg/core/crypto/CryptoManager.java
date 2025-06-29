@@ -1,11 +1,11 @@
-package com.yumsg.core.crypto;
+package com.example.yumsg.core.crypto;
 
 import android.util.Log;
 import android.util.Base64;
 
-import com.yumsg.core.data.*;
-import com.yumsg.core.enums.*;
-import com.yumsg.core.storage.SharedPreferencesManager;
+import com.example.yumsg.core.data.*;
+import com.example.yumsg.core.enums.*;
+import com.example.yumsg.core.storage.SharedPreferencesManager;
 
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.CryptoException;

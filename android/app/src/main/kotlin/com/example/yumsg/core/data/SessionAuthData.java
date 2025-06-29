@@ -1,4 +1,4 @@
-package com.yumsg.core.data;
+package com.example.yumsg.core.data;
 
 import android.util.Log;
 

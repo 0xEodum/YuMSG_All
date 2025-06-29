@@ -1,4 +1,4 @@
-package com.yumsg.core.storage;
+package com.example.yumsg.core.storage;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -7,8 +7,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 
-import com.yumsg.core.data.*;
-import com.yumsg.core.enums.*;
+import com.example.yumsg.core.data.*;
+import com.example.yumsg.core.enums.*;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -1,4 +1,4 @@
-package com.yumsg.core.network;
+package com.example.yumsg.core.network;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
@@ -17,10 +17,10 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
-import com.yumsg.core.data.*;
-import com.yumsg.core.enums.*;
-import com.yumsg.core.state.StateManager;
-import com.yumsg.core.storage.SharedPreferencesManager;
+import com.example.yumsg.core.data.*;
+import com.example.yumsg.core.enums.*;
+import com.example.yumsg.core.state.StateManager;
+import com.example.yumsg.core.storage.SharedPreferencesManager;
 
 import java.io.*;
 import java.lang.reflect.Type;

@@ -1,7 +1,7 @@
-package com.yumsg.core.data;
+package com.example.yumsg.core.data;
 
-import com.yumsg.core.enums.AppState;
-import com.yumsg.core.enums.ConnectionState;
+import com.example.yumsg.core.enums.AppState;
+import com.example.yumsg.core.enums.ConnectionState;
 
 public interface StateObserver {
     void onStateChanged(AppState newState);
